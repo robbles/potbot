@@ -9,8 +9,14 @@ SENTIMENT_ANALYSIS_API = 'http://text-processing.com/api/sentiment/'
 
 # How many posts from the front page to process
 NUM_POSTS = 3
+
 # How many comments from each post to process
 NUM_COMMENTS = 3
+
+# Whether to actually upvote or just simulate
+UPVOTE_ENABLED = False
+
+USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_5) AppleWebKit/537.22 (KHTML, like Gecko) Chrome/25.0.1364.29 Safari/537.22'
 
 class HackerNews(object):
     BASE_URL = 'http://news.ycombinator.com/'
@@ -19,7 +25,9 @@ class HackerNews(object):
         self.session_cookie = session_cookie
 
     def make_request(self, url):
-        return requests.get(url, cookies={
+        return requests.get(url, headers={
+            'User-Agent': USER_AGENT
+        }, cookies={
             'user': self.session_cookie
         })
 
@@ -37,6 +45,12 @@ class HackerNews(object):
         if limit:
             comments = list(comments)[:limit]
         return list(comments)
+
+    def upvote(self, comment):
+        if UPVOTE_ENABLED:
+            self.make_request(comment.upvote_url)
+        else:
+            print 'Upvoting %s at %s' % (comment, comment.upvote_url)
 
     def _get_post_urls(self, page):
         tree = html.fromstring(page)
@@ -106,6 +120,10 @@ def test():
 
         for comment in api.get_comments(post.url, NUM_COMMENTS):
             print 'Processing comment %s' % comment
+            pos = comment.score()
+            print 'Positivity: %f' % pos
+            if pos > 0.5:
+                api.upvote(comment)
 
 if __name__ == '__main__':
     test()
