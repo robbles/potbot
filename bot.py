@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import re
+from time import sleep
 import requests
 from lxml import html
 from lxml.cssselect import CSSSelector
@@ -14,22 +15,24 @@ NUM_POSTS = 3
 NUM_COMMENTS = 20
 
 # Whether to actually upvote or just simulate
-UPVOTE_ENABLED = False
+UPVOTE_ENABLED = True
 
-USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_5) AppleWebKit/537.22 (KHTML, like Gecko) Chrome/25.0.1364.29 Safari/537.22'
+# Delay between upvotes to simulate real activity
+VOTE_DELAY = 1
+
+HEADERS = {
+    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_5) AppleWebKit/537.22 (KHTML, like Gecko) Chrome/25.0.1364.29 Safari/537.22',
+}
 
 class HackerNews(object):
     BASE_URL = 'http://news.ycombinator.com/'
 
     def __init__(self, session_cookie):
         self.session_cookie = session_cookie
+        self.cookies = dict(user=session_cookie)
 
     def make_request(self, url):
-        return requests.get(url, headers={
-            'User-Agent': USER_AGENT
-        }, cookies={
-            'user': self.session_cookie
-        })
+        return requests.get(url, headers=HEADERS, cookies=self.cookies)
 
     def get_posts(self, limit=None):
         """
@@ -58,7 +61,8 @@ class HackerNews(object):
     def upvote(self, comment):
         """ Given a HNComment, upvote the associated comment """
         if UPVOTE_ENABLED:
-            self.make_request(comment.upvote_url)
+            res = self.make_request(comment.upvote_url)
+            print res.status_code, res.text
         else:
             print 'Upvoting %s at %s' % (comment, comment.upvote_url)
 
@@ -105,31 +109,53 @@ class HNComment(object):
         self._score = None
 
     @property
-    def score(self):
+    def sentiment(self):
         if self._score:
             return self._score
-        sentiment = get_sentiment(self.text)
-        self._score = sentiment['probability']['pos']
+        self._score = get_sentiment(self.text)
         return self._score
+
+    @property
+    def positivity(self):
+        return self.sentiment['probability']['pos']
+
+    @property
+    def category(self):
+        return self.sentiment['label']
 
     def __str__(self):
         return '<Comment #%s (%d chars)>' % (self.id, len(self.text))
 
 
 def get_sentiment(text):
+    """
+    Use the text-processing.com sentiment API to analyze a string.
+    """
     response = requests.post(SENTIMENT_ANALYSIS_API, data={
         'text': text
     })
     return response.json()
 
+def sort_comments(comments):
+    """
+    Sort a list of HNComments by sentiment descending.
+    """
+    return sorted(comments, key=lambda comment: comment.positivity, reverse=True)
 
-def test():
-    #print get_sentiment('I am so happy right now I could jump for joy!')
-    #print get_sentiment('fuck this place and all you ugly rotten bastards.')
+def aggregate_stats(comments):
+    """
+    Calculate total and average sentiment for a list of HNComments.
+    """
+    total = sum(comment.positivity for comment in comments)
+    avg = total / float(len(comments))
+    num_positive = len(filter(lambda comment: comment.category == 'pos', comments))
+    num_negative = len(filter(lambda comment: comment.category == 'neg', comments))
+    return total, avg, num_positive, num_negative
+
+
+def run_positivity_bot():
 
     api = HackerNews('55OXCZfg')
-
-    #print api.get_comments_page('http://news.ycombinator.com/item?id=5049714')
 
     for post in api.get_posts(NUM_POSTS):
         print 'Processing post %s' % post
@@ -137,15 +163,18 @@ def test():
         comments = api.get_comments(post.url, NUM_COMMENTS)
         print 'Fetched %d comments' % len(comments)
 
-        sorted_comments = sorted(comments, key=lambda comment: comment.score, reverse=True)
-        total = sum(comment.score for comment in comments)
-        avg = total / float(len(comments))
+        total, avg, num_positive, num_negative = aggregate_stats(comments)
 
         print 'Total positivity: %f  Average positivity: %f' % (total, avg)
+        print 'Positive Comments: %d  Negative Comments: %d' % (num_positive, num_negative)
 
-        for comment in sorted_comments:
-            print comment, comment.score
+        upvotes = filter(lambda comment: comment.category == 'pos', comments)
+        print 'Upvoting %d comments' % len(upvotes)
+        for comment in upvotes:
+            api.upvote(comment)
+            sleep(VOTE_DELAY)
+
 
 if __name__ == '__main__':
-    test()
+    run_positivity_bot()
 
