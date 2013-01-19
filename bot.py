@@ -34,6 +34,15 @@ class HackerNews(object):
     def make_request(self, url):
         return requests.get(url, headers=HEADERS, cookies=self.cookies)
 
+    def validate_session(self):
+        print 'Requesting "%s"' % (self.BASE_URL + 'news')
+        response = self.make_request(self.BASE_URL + 'news')
+        tree = html.fromstring(response.text)
+        login_link = tree.cssselect('.pagetop a:contains(login)')
+        if login_link:
+            return False
+        return True
+
     def get_posts(self, limit=None):
         """
         Fetches the list of posts from the front page of Hacker News.
@@ -155,7 +164,21 @@ def aggregate_stats(comments):
 
 def run_positivity_bot():
 
-    api = HackerNews('55OXCZfg')
+    import argparse
+    parser = argparse.ArgumentParser(description='Hacker News Positivity Bot')
+    parser.add_argument('session', help='Session cookie (value of "user" cookie on news.ycombinator.com when logged in)')
+    parser.add_argument('--validate', action='store_true', help='Validate session cookie only, then exit')
+    args = parser.parse_args()
+
+    api = HackerNews(args.session)
+
+    if not api.validate_session():
+        print 'Error: session is invalid!'
+        exit(1)
+
+    if args.validate:
+        print 'Session OK'
+        exit(0)
 
     for post in api.get_posts(NUM_POSTS):
         print 'Processing post %s' % post
