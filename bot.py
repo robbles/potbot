@@ -143,7 +143,8 @@ def aggregate_stats(comments):
     Calculate total and average sentiment for a list of HNComments.
     """
     total = sum(comment.positivity for comment in comments)
-    avg = total / float(len(comments))
+    num_comments = len(comments)
+    avg = total / float(num_comments) if num_comments else 0.0
     num_positive = len(filter(lambda comment: comment.category == 'pos', comments))
     num_negative = len(filter(lambda comment: comment.category == 'neg', comments))
     return total, avg, num_positive, num_negative
