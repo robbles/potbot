@@ -1,29 +1,12 @@
 #!/usr/bin/env python
 
 import re
-import os
 from time import sleep
 import requests
 from lxml import html
 from lxml.cssselect import CSSSelector
 
-SENTIMENT_ANALYSIS_API = 'http://text-processing.com/api/sentiment/'
-
-# How many posts from the front page to process
-NUM_POSTS = int(os.getenv('NUM_POSTS', 3))
-
-# How many comments from each post to process
-NUM_COMMENTS = int(os.getenv('NUM_COMMENTS', 20))
-
-# Whether to actually upvote or just simulate
-UPVOTE_ENABLED = os.getenv('UPVOTE_ENABLED') in ('True', 'true')
-
-# Delay between upvotes to simulate real activity (seconds)
-VOTE_DELAY = int(os.getenv('VOTE_DELAY', 1))
-
-HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_5) AppleWebKit/537.22 (KHTML, like Gecko) Chrome/25.0.1364.29 Safari/537.22',
-}
+import settings
 
 class HackerNews(object):
     BASE_URL = 'http://news.ycombinator.com/'
@@ -33,7 +16,7 @@ class HackerNews(object):
         self.cookies = dict(user=session_cookie)
 
     def make_request(self, url):
-        return requests.get(url, headers=HEADERS, cookies=self.cookies)
+        return requests.get(url, headers=settings.HEADERS, cookies=self.cookies)
 
     def validate_session(self):
         print 'Requesting "%s"' % (self.BASE_URL + 'news')
@@ -70,9 +53,10 @@ class HackerNews(object):
 
     def upvote(self, comment):
         """ Given a HNComment, upvote the associated comment """
-        if UPVOTE_ENABLED:
+        if settings.UPVOTE_ENABLED:
             res = self.make_request(comment.upvote_url)
             print res.status_code, res.text
+            sleep(settings.VOTE_DELAY)
         else:
             print 'Would upvote %s' % comment
 
@@ -143,7 +127,7 @@ def get_sentiment(text):
     """
     Use the text-processing.com sentiment API to analyze a string.
     """
-    response = requests.post(SENTIMENT_ANALYSIS_API, data={
+    response = requests.post(settings.SENTIMENT_ANALYSIS_API, data={
         'text': text
     })
     return response.json()
@@ -183,10 +167,10 @@ def run_positivity_bot():
         print 'Session OK'
         exit(0)
 
-    for post in api.get_posts(NUM_POSTS):
+    for post in api.get_posts(settings.NUM_POSTS):
         print 'Processing %s' % post
 
-        comments = api.get_comments(post.url, NUM_COMMENTS)
+        comments = api.get_comments(post.url, settings.NUM_COMMENTS)
         print 'Fetched %d comments' % len(comments)
 
         total, avg, num_positive, num_negative = aggregate_stats(comments)
@@ -198,7 +182,6 @@ def run_positivity_bot():
         print 'Upvoting %d comments' % len(upvotes)
         for comment in upvotes:
             api.upvote(comment)
-            sleep(VOTE_DELAY)
 
 
 if __name__ == '__main__':
