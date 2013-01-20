@@ -8,6 +8,8 @@ from lxml.cssselect import CSSSelector
 
 import settings
 
+from mixpanel import track
+
 class HackerNews(object):
     BASE_URL = 'http://news.ycombinator.com/'
 
@@ -59,6 +61,9 @@ class HackerNews(object):
             sleep(settings.VOTE_DELAY)
         else:
             print 'Would upvote %s' % comment
+            # track comment to mixpanel
+            track("upvoted-comment",
+            { "text": comment.text, "id": comment.id, "sentiment": comment.sentiment })
 
     def _get_post_urls(self, page):
         tree = html.fromstring(page)
@@ -148,7 +153,6 @@ def aggregate_stats(comments):
     num_positive = len(filter(lambda comment: comment.category == 'pos', comments))
     num_negative = len(filter(lambda comment: comment.category == 'neg', comments))
     return total, avg, num_positive, num_negative
-
 
 def run_positivity_bot():
 
