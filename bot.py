@@ -10,16 +10,16 @@ from lxml.cssselect import CSSSelector
 SENTIMENT_ANALYSIS_API = 'http://text-processing.com/api/sentiment/'
 
 # How many posts from the front page to process
-NUM_POSTS = os.getenv('NUM_POSTS', 3)
+NUM_POSTS = int(os.getenv('NUM_POSTS', 3))
 
 # How many comments from each post to process
-NUM_COMMENTS = os.getenv('NUM_COMMENTS', 20)
+NUM_COMMENTS = int(os.getenv('NUM_COMMENTS', 20))
 
 # Whether to actually upvote or just simulate
 UPVOTE_ENABLED = os.getenv('UPVOTE_ENABLED') in ('True', 'true')
 
 # Delay between upvotes to simulate real activity (seconds)
-VOTE_DELAY = os.getenv('VOTE_DELAY', 1)
+VOTE_DELAY = int(os.getenv('VOTE_DELAY', 1))
 
 HEADERS = {
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_7_5) AppleWebKit/537.22 (KHTML, like Gecko) Chrome/25.0.1364.29 Safari/537.22',
@@ -74,7 +74,7 @@ class HackerNews(object):
             res = self.make_request(comment.upvote_url)
             print res.status_code, res.text
         else:
-            print 'Upvoting %s at %s' % (comment, comment.upvote_url)
+            print 'Would upvote %s' % comment
 
     def _get_post_urls(self, page):
         tree = html.fromstring(page)
@@ -127,6 +127,8 @@ class HNComment(object):
 
     @property
     def positivity(self):
+        if not self.sentiment:
+            return None
         return self.sentiment['probability']['pos']
 
     @property
@@ -134,7 +136,7 @@ class HNComment(object):
         return self.sentiment['label']
 
     def __str__(self):
-        return '<Comment #%s (%d chars)>' % (self.id, len(self.text))
+        return '<Comment #%s (%d chars, positivity %f)>' % (self.id, len(self.text), self.positivity)
 
 
 def get_sentiment(text):
@@ -182,7 +184,7 @@ def run_positivity_bot():
         exit(0)
 
     for post in api.get_posts(NUM_POSTS):
-        print 'Processing post %s' % post
+        print 'Processing %s' % post
 
         comments = api.get_comments(post.url, NUM_COMMENTS)
         print 'Fetched %d comments' % len(comments)
