@@ -8,7 +8,7 @@ from lxml.cssselect import CSSSelector
 
 import settings
 
-from mixpanel import track
+import mixpanel
 
 class HackerNews(object):
     BASE_URL = 'http://news.ycombinator.com/'
@@ -58,12 +58,17 @@ class HackerNews(object):
         if settings.UPVOTE_ENABLED:
             res = self.make_request(comment.upvote_url)
             print res.status_code, res.text
+
+            # track comment to mixpanel
+            mixpanel.track('Upvoted Comment', {
+                'Comment ID': comment.id,
+                'Text Length': len(comment.text),
+                'Debug Mode': not settings.UPVOTE_ENABLED,
+            }.update(comment.sentiment['probability']))
+
             sleep(settings.VOTE_DELAY)
         else:
             print 'Would upvote %s' % comment
-            # track comment to mixpanel
-            track("upvoted-comment",
-            { "text": comment.text, "id": comment.id, "sentiment": comment.sentiment })
 
     def _get_post_urls(self, page):
         tree = html.fromstring(page)
@@ -98,7 +103,7 @@ class HNPost(object):
         self.url = url
 
     def __str__(self):
-        return '<Story #%s>' % self.id
+        return '<Post #%s>' % self.id
 
 class HNComment(object):
     def __init__(self, id, upvote_url, text):
@@ -182,6 +187,15 @@ def run_positivity_bot():
 
         print 'Total positivity: %f  Average positivity: %f' % (total, avg)
         print 'Positive Comments: %d  Negative Comments: %d' % (num_positive, num_negative)
+
+        # track stats to mixpanel
+        mixpanel.track("Post Analyzed", {
+            'Post ID': post.id,
+            'Comments': len(comments),
+            'Average Positivity': avg,
+            'Positive Comments': num_positive,
+            'Negative Comments': num_negative,
+        })
 
         upvotes = filter(lambda comment: comment.category == 'pos', comments)
         print 'Upvoting %d comments' % len(upvotes)

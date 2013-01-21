@@ -1,6 +1,7 @@
 import subprocess
 import base64
-import simplejson
+import json
+import settings
 
 def track(event, properties=None):
     """
@@ -16,13 +17,13 @@ def track(event, properties=None):
         properties = {}
 
     # XXX: Be sure to change this!
-    token = "bfb870df681c2a8867b7f644d1670a8b"
+    token = settings.MIXPANEL_TOKEN
 
     if "token" not in properties:
         properties["token"] = token
 
     params = {"event": event, "properties": properties}
-    data = base64.b64encode(simplejson.dumps(params))
+    data = base64.b64encode(json.dumps(params))
     request = "http://api.mixpanel.com/track/?data=" + data
-    return subprocess.Popen(("curl",request), stderr=subprocess.PIPE,
+    return subprocess.Popen(("curl", request), stderr=subprocess.PIPE,
         stdout=subprocess.PIPE)
